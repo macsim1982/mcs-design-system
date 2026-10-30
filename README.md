@@ -1,4 +1,4 @@
-# Design system (nom définitif à choisir)
+# MCS Design System (MCS: Minimal Consistant Solution)
 
 Design system web durable, fondé sur la plateforme : HTML et CSS natifs, tokens au format DTCG,
 comportements en custom elements light DOM, adapters de frameworks minces.
