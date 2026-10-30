@@ -1,0 +1,54 @@
+name: Bug
+description: Un comportement incorrect d'un composant, d'un token ou de l'outillage.
+labels: [bug, triage]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Sévérité
+      description: « Critique » déclenche l'évaluation d'un hotfix (RELEASE_PROCESS.md, section 9).
+      options:
+        - Critique (production cassée, pas de contournement)
+        - Majeure (fonction importante dégradée, contournement possible)
+        - Mineure
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Domaine
+      options:
+        - Accessibilité
+        - Composant (comportement)
+        - Composant (rendu visuel)
+        - Tokens et thèmes
+        - Adapter React
+        - Outillage, CI, release
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: '@mcs-ds/web@1.4.0'
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Navigateur, système, technologie d'assistance
+      placeholder: Safari 26.2 sur iOS 26, VoiceOver
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Étapes minimales, ou lien vers un exemple (HTML seul de préférence).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu et comportement observé
+    validations:
+      required: true

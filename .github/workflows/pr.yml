@@ -1,0 +1,62 @@
+# Pull request hygiene (docs/engineering/GIT_WORKFLOW.md, sections 9 to 11).
+# Branch protection requires the `pr-checks` job. Untrusted values (title, body, branch name) are
+# passed through environment variables or read from the event payload, never interpolated in scripts.
+name: PR
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  HUSKY: '0'
+
+jobs:
+  pr-checks:
+    name: pr-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Title follows Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --verbose
+
+      - name: Branch name follows the convention
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: node tools/bin/branch-name.ts "$HEAD_REF"
+
+      - name: Required template sections are filled in
+        run: node tools/bin/check-pr.ts body
+
+      - name: Changed packages have changesets
+        if: ${{ !startsWith(github.event.pull_request.head.ref, 'changeset-release/') }}
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: pnpm exec changeset status --since="origin/$BASE_REF"
+
+      - name: Changesets follow the format
+        run: pnpm run check:changesets
+
+      - name: Breaking changes have the required approvals
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Repository variable; 0 while there is a single maintainer (GIT_WORKFLOW.md §10.2).
+          BREAKING_CHANGE_APPROVALS: ${{ vars.BREAKING_CHANGE_APPROVALS || '2' }}
+        run: node tools/bin/check-pr.ts approvals

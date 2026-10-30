@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build and test outputs
+dist/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+*.tsbuildinfo
+.vitest-attachments/
+
+# Environments and secrets (never committed)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local tooling
+.DS_Store
+*.log
+.eslintcache
+.stylelintcache
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/

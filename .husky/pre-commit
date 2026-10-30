@@ -1,0 +1,4 @@
+# Conflict markers and trailing whitespace in staged files.
+git diff --cached --check
+# Lint, format and secret detection on staged files only (lint-staged.config.js).
+pnpm exec lint-staged --concurrent false

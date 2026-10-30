@@ -1,0 +1,198 @@
+# Technical quality gates (docs/engineering/GIT_WORKFLOW.md, section 11).
+# Branch protection requires a single check, `ci-ok`, which aggregates every job below.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'release/**']
+  merge_group:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: '0'
+
+jobs:
+  scope:
+    name: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.scope.outputs.packages }}
+      browser: ${{ steps.scope.outputs.browser }}
+      visual: ${{ steps.scope.outputs.visual }}
+      package-checks: ${{ steps.scope.outputs.packageChecks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Compute conditional gates
+        id: scope
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: node tools/bin/ci-scope.ts "$BASE_REF" | tee -a "$GITHUB_OUTPUT"
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm run lint:js
+      - run: pnpm run lint:css
+      - run: pnpm run lint:format
+      - run: pnpm run lint:secrets
+      - run: pnpm run check:changesets
+
+  workflows:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm run typecheck
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm run test:coverage
+      - name: Upload coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  architecture:
+    name: architecture
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm run check:architecture
+      - run: pnpm run check:deadcode
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm run build
+
+  # Conditional gates: they start automatically once packages and their tests exist (phase 2).
+  # The scripts they call (test:browser, test:visual, check:packages) are added with the first
+  # package, following docs/engineering/TESTING_STRATEGY.md.
+  browser:
+    name: browser (${{ matrix.browser }})
+    needs: scope
+    if: ${{ needs.scope.outputs.browser == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm exec playwright install --with-deps "$BROWSER"
+        env:
+          BROWSER: ${{ matrix.browser }}
+      - run: pnpm run test:browser
+        env:
+          MCS_BROWSER: ${{ matrix.browser }}
+
+  visual:
+    name: visual
+    needs: scope
+    if: ${{ needs.scope.outputs.visual == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Visual regression tests (official Playwright image for deterministic rendering)
+        run: >-
+          docker run --rm --ipc=host -v "$PWD":/work -w /work
+          mcr.microsoft.com/playwright:v1.64.1-noble
+          sh -c "corepack enable && pnpm run test:visual"
+
+  packages:
+    name: packages
+    needs: scope
+    if: ${{ needs.scope.outputs.package-checks == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm run build
+      - run: pnpm run check:packages
+
+  ci-ok:
+    name: ci-ok
+    if: ${{ always() }}
+    needs: [scope, lint, workflows, typecheck, unit, architecture, build, browser, visual, packages]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job succeeded or was skipped by scope
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "::error::At least one quality gate failed."
+            exit 1
+          fi

@@ -1,0 +1,5 @@
+# Branch naming, no direct push to main or release/*, no hand-made version tags (stdin: pushed refs).
+node tools/bin/pre-push.ts
+# Fast checks only; the CI runs the full quality gates.
+pnpm run typecheck
+pnpm run test:unit

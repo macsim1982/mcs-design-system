@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommits"],
+  "minimumReleaseAge": "3 days",
+  "rangeStrategy": "bump",
+  "osvVulnerabilityAlerts": true,
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 6am on monday"] },
+  "packageRules": [
+    {
+      "description": "Tooling: one weekly PR for non-major updates",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "tooling (non-major)",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "GitHub Actions: pinned by commit SHA, grouped weekly",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "typescript-eslint does not support TypeScript 7 yet (see CODING_STANDARDS.md)",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6.1.0"
+    }
+  ]
+}

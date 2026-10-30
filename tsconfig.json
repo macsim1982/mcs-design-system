@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["tools/**/*.ts", "vitest.config.ts"]
+}

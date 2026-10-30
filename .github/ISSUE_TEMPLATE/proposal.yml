@@ -1,0 +1,46 @@
+name: Proposition
+description: Nouveau composant, variante, token, hook ou changement d'API (RFC pour les changements structurants).
+labels: [proposal]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type de proposition
+      options:
+        - Nouveau composant (RFC)
+        - Nouvelle variante ou nouveau hook
+        - Nouveau token
+        - Changement d'API ou rupture (RFC)
+        - Outillage ou processus
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problème à résoudre
+      description: Le besoin, pas la solution.
+    validations:
+      required: true
+  - type: textarea
+    id: consumers
+    attributes:
+      label: Consommateurs concernés
+      description: Au moins deux produits ou usages réels (GOVERNANCE.md, section 4).
+    validations:
+      required: true
+  - type: textarea
+    id: platform
+    attributes:
+      label: Que fait déjà la plateforme web ?
+      description: Élément natif, API, statut Baseline (PRINCIPLES.md, test d'admission).
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposition et alternatives
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibilité
+      description: Pattern APG, clavier, lecteurs d'écran.

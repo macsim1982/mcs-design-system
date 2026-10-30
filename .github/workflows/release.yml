@@ -1,0 +1,161 @@
+# Release pipeline (docs/engineering/RELEASE_PROCESS.md, section 6).
+# push        → full verification, then the "Version Packages" PR or the publication.
+# manual run  → dry run: release notes preview and publication plan, nothing is written.
+#
+# One-time setup (RELEASE_PROCESS.md, section 13):
+# - npm trusted publisher for each package (workflow release.yml, environment npm): no npm token.
+# - GitHub App with contents and pull-requests write access. Pull requests opened with the default
+#   GITHUB_TOKEN do not trigger workflows, so the required checks would never run on the release PR.
+#   Repository variable RELEASE_APP_CLIENT_ID, environment secret RELEASE_APP_PRIVATE_KEY.
+name: Release
+
+on:
+  push:
+    branches: [main, 'release/**']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  verify:
+    name: verify
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  dry-run:
+    name: dry-run
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: node tools/bin/release-version.ts --dry-run
+      - run: pnpm run build
+      - run: node tools/bin/release-publish.ts --dry-run
+
+  release:
+    name: release
+    needs: verify
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      has-docs: ${{ steps.docs.outputs.exists }}
+    env:
+      HUSKY: '0'
+    steps:
+      - name: Create a short-lived GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: ./.github/actions/setup
+      - name: Configure the Git author of release commits and tags
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          git config user.name "$APP_SLUG[bot]"
+          git config user.email "$APP_SLUG[bot]@users.noreply.github.com"
+      - run: pnpm run build
+
+      - name: Version Packages PR, or publication
+        id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          version-script: pnpm run release:version
+          publish-script: pnpm run release:publish
+          commit-message: 'chore(release): version packages'
+          pr-title: 'chore(release): version packages'
+          create-github-releases: false
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Is there a documentation app to deploy?
+        id: docs
+        run: |
+          if [ -f apps/workbench/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge the maintenance release back into main
+        if: ${{ steps.changesets.outputs.published == 'true' && startsWith(github.ref_name, 'release/') }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          version=$(node -p "require('./packages/web/package.json').version")
+          branch="chore/merge-back-$(printf '%s' "$version" | tr '.' '-')"
+          git switch -c "$branch"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "chore(release): merge back v$version" \
+            --body "Report sur main de la release de maintenance v$version (RELEASE_PROCESS.md, section 9)."
+
+  deploy-docs:
+    name: deploy-docs
+    needs: release
+    # Only main deploys documentation: a maintenance release must not replace the latest docs.
+    if: ${{ github.ref_name == 'main' && needs.release.outputs.published == 'true' && needs.release.outputs.has-docs == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    env:
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm --filter ./apps/workbench run build
+      - name: Record the deployed version
+        run: |
+          node -e "
+            const { version } = require('./packages/web/package.json');
+            const record = {
+              version,
+              commit: process.env.GITHUB_SHA,
+              date: new Date().toISOString(),
+              releaseNotes: 'docs/releases/v' + version + '.md',
+            };
+            process.stdout.write(JSON.stringify(record, null, 2));
+          " > apps/workbench/dist/version.json
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: apps/workbench/dist
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

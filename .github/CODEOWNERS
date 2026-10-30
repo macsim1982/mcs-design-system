@@ -1,0 +1,5 @@
+# Required reviewers by area (docs/engineering/GIT_WORKFLOW.md, section 10).
+# Single maintainer for now: add GitHub teams (@org/team) or users per area when the team grows.
+# Later rules take precedence over earlier ones.
+
+* @macsim1982

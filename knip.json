@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["tools/bin/*.ts"],
+      "project": ["tools/**/*.ts", "*.config.{js,ts}"]
+    },
+    "packages/*": {
+      "entry": ["src/index.ts", "src/contracts.ts", "src/elements/*.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  },
+  "ignoreDependencies": ["@secretlint/secretlint-rule-preset-recommend"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": ["playwright"]
+}

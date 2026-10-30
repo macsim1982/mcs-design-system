@@ -1,0 +1,62 @@
+{
+  "name": "mcs-design-system",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design system monorepo: tokens, CSS, behavior elements and framework adapters.",
+  "type": "module",
+  "packageManager": "pnpm@12.15.0",
+  "engines": {
+    "node": ">=24.8.0"
+  },
+  "browserslist": [
+    "baseline widely available"
+  ],
+  "scripts": {
+    "prepare": "husky",
+    "lint": "pnpm run lint:js && pnpm run lint:css && pnpm run lint:format && pnpm run lint:secrets",
+    "lint:js": "eslint . --max-warnings=0",
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input --max-warnings=0",
+    "lint:format": "prettier . --check",
+    "lint:secrets": "secretlint \"**/*\" --secretlintignore .gitignore",
+    "format": "prettier . --write",
+    "typecheck": "tsc --project tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
+    "check:architecture": "node tools/bin/check-architecture.ts",
+    "check:deadcode": "knip",
+    "check:changesets": "node tools/bin/changesets-lint.ts",
+    "build": "pnpm -r --if-present run build",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:architecture && pnpm run check:deadcode && pnpm run check:changesets && pnpm run build",
+    "changeset": "changeset",
+    "release:version": "node tools/bin/release-version.ts",
+    "release:publish": "node tools/bin/release-publish.ts",
+    "scaffold:component": "node tools/bin/scaffold-component.ts"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/js": "^10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.1.0",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "dependency-cruiser": "^18.7.0",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "knip": "^6.43.0",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10",
+    "secretlint": "^13.1.0",
+    "stylelint": "^17.16.0",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-declaration-strict-value": "^1.12.1",
+    "stylelint-plugin-use-baseline": "^1.4.8",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

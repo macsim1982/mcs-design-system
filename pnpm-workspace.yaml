@@ -1,0 +1,16 @@
+# Workspaces: published packages and private apps (created in phase 2, after architecture approval).
+packages:
+  - packages/*
+  - apps/*
+  - apps/consumers/*
+
+# Supply-chain protection (see docs/engineering/CODING_STANDARDS.md, section 7).
+# A version published less than 3 days ago is never installed. Setting the value explicitly enables
+# strict mode: installation fails instead of silently picking an immature version.
+minimumReleaseAge: 4320
+
+# No dependency may run install scripts unless it is listed here with a justification.
+allowBuilds: {}
+
+# Refuse to install with an unsupported Node.js version (see "engines" in package.json).
+engineStrict: true
